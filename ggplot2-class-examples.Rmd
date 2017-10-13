@@ -1,0 +1,396 @@
+---
+title: "ggplot2 Examples from Class"
+author: "Alex C. Engler - The University of Chicago"
+date: "October 12th, 2017"
+output: 
+  html_document: 
+  fig_caption: false
+urlcolor: blue
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r error=FALSE, warning=FALSE}
+library(rmarkdown)
+library(tidyverse)
+enr <- read_csv("enr.csv")
+```
+
+## Basics of ggplot2
+
+Sample enr data:
+```{r}
+enr_lim <- sample_frac(enr, size = 0.03, replace=FALSE)
+```
+
+Data comes first:
+```{r}
+ggplot(data=enr_lim)
+```
+
+Aesthetics come next - note the x-axis appears:
+```{r}
+ggplot(enr_lim, aes(x=read_score))
+```
+
+Adding a geometry gets us a dot plot:
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=0)) + geom_point()
+```
+
+Note we added the aesthetic y=0 above, since geom_point() requires x and y aesthetics. We can see required aesthetics in bold on this page:
+```{r}
+?geom_point()
+```
+
+### Scatterplot 
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score)) + 
+  geom_point()
+```
+
+Scatterplot with points colored by English Language Learner (ell) Status
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, color=ell)) + 
+  geom_point() 
+```
+
+Note we use color, and not fill here, since geom_points do not have a fill aesthetic. Also ggplot also creates a legend for us.
+
+## Layering geoms and inheritance of aesthetics
+Now we add a second geometry (geom_smooth). The important thing to understand here is the inheritance of the aesthetics. Both geom_point() and geom_smooth() get all the aesthetics defined in ggplot()
+
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, color=ell)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+## Some aesthetics imply grouping
+You might also notice this results in two distinct smoothing lines. Since it makesno sense to otherwise use the 'color' aesthetic on geom_line(), you get two distinctly colored lines.
+
+You can get two distinct lines without the coloring using the group aesthetic.
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, group=ell)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+Alternatively you can color the dots by ell status but keep only one smoothing line by moving the color aesthetic from ggplot() to geom_point()
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score)) + 
+  geom_point(aes(color=ell)) + 
+  geom_smooth()
+```
+
+Since geom_smooth only inherits aesthetics from ggplot(), it no longer uses the color aesthetic, resulting in one smoothing line.
+
+## Aesthetics are not everything! Changing Graph Options.
+Remember we can change many graph options outside of aes(), but these are not aesthetics, and are not driven by the data. For example, alpha is the level of opaqueness:
+
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, color=ell), alpha = 0.3) + 
+  geom_point() 
+```
+
+Or alternatively within geom_point()
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, color=ell)) + 
+  geom_point(alpha = 0.3) 
+```
+
+Size changes the point size:
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, color=ell)) + 
+  geom_point(alpha = 0.3, size=0.5) 
+```
+
+Size and alpha can be aesthetics, too! They just aren't being used that way above. Alpha is used to distinguish ell and non-ell students as an aesthetic below.
+
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, alpha=ell)) + 
+  geom_point() 
+```
+
+Below I use dplyr to calculate the number of students, average and standard deviation of reading scores, and percent of at risk students by selected grade. Then I pass this to ggplot, where I create a bubble plot.
+
+```{r}
+enr %>% 
+  filter(grade %in% c("3", "4", "5","6", "7", "8","10")) %>%
+  group_by(grade) %>%
+  summarize(count = n(),
+            avg_read = mean(read_score),
+            read_sd = sd(read_score),
+            percent_atrisk = sum(atrisk)/n()) %>%
+  ggplot(aes(x=avg_read, y=read_sd, size=count, alpha=percent_atrisk)) +
+    geom_point()
+```
+
+### Labels and geom_label
+Same as above, but now added geom_label, and having added a new 'label' aesthetic. I also moved some aesthetics to within geom_point (for instance, size, since we do not want that to apply to geom_label).
+  
+```{r}
+enr %>% 
+  filter(grade %in% c("3", "4", "5","6", "7", "8","10")) %>%
+  group_by(grade) %>%
+  summarize(count = n(),
+            avg_read = mean(read_score),
+            read_sd = sd(read_score),
+            percent_atrisk = sum(atrisk)/n()) %>%
+  ggplot(aes(x=avg_read, y=read_sd)) +
+  geom_point(aes(size=count, alpha=percent_atrisk)) + 
+  geom_label(aes(label=grade), nudge_x=0.01)
+```
+  
+### ggrepel and geom_label_repel
+Our labels overlap a bit here, for which ggrepel can be useful. Note that geom_label is replaced with geom_label_repel. 
+
+```{r}
+library(ggrepel)
+
+enr %>% 
+  filter(grade %in% c("3", "4", "5","6", "7", "8","10")) %>%
+  group_by(grade) %>%
+  summarize(count = n(),
+            avg_read = mean(read_score),
+            read_sd = sd(read_score),
+            percent_atrisk = sum(atrisk)/n()) %>%
+  ggplot(aes(x=avg_read, y=read_sd)) +
+  geom_point(aes(size=count, alpha=percent_atrisk)) + 
+  geom_label_repel(aes(label=grade))
+```
+
+
+## Variables types are important!
+Note how ggplot interprets variable types. If we pass a continuous variable into color, we get a continuous color scale (not what we want here):
+```{r}
+ggplot(enr_lim, aes(read_score, math_score, shape=ell, color=atrisk)) + 
+  geom_point(alpha = 0.3)
+```
+
+We can use factor() to adjust the variable type on the fly.
+```{r}
+ggplot(enr_lim, aes(read_score, math_score, shape = ell, color=factor(atrisk))) +
+  geom_point(alpha = 0.3)
+```
+
+### Remember to use labs() for titles and to clearly label visual encodings:
+Below I rename the title, subtitle, caption (for data sourcng), x axis-label, y-axis label, ell status and at risk status - all using `labs()`:
+```{r}
+ggplot(enr_lim, aes(x=read_score, y=math_score, shape = ell, color=factor(atrisk))) +
+  geom_point(alpha = 0.3) +
+  labs(
+    title="At risk students earn lower test scores",
+    subtitle="DC CAS Math & Reading Scores (2014) ",
+    caption="DC OSSE Data",
+    x="Normalized Reading Scores",
+    y="Normalized Math Scores",
+    shape="ELL Status",
+    color="At Risk Status"
+  )
+```
+
+## ggplot2 works in layers
+ggplot creates layers when we apply a geom to defined data and aesthetics. When we export this to a pdf or svg (vector graphic file formats), these layers will be preserved when we open the visualization in Adobe Illustrator.
+
+```{r}
+hist <- ggplot(data=enr, aes(x=read_score,)) + 
+  geom_histogram(binwidth=0.2, fill="blue") +
+  geom_rug() + 
+  geom_vline(aes(xintercept=median(read_score)))
+hist
+
+# ggsave("histogram.pdf", hist)
+```
+
+## Iteration in ggplot2
+One of the great advantages of ggplot is that it lets us rapidly iterate through many different views of the data with small alerations in code. Below, we swap out geoms (and make a few other minor changes) to explor a series of visualization.
+
+There are toy exmaples below, which you can run to get a better sense of various geometries. Below that, there are examples using the enr data:
+
+```{r, eval=FALSE}
+df <- data.frame(x = c(3,1,5),
+                 y = c(2,4,6),
+                 label=c("A","B","C"))
+
+g1 <- ggplot(df, aes(x=x,y=y,label=label))
+
+g1 + geom_point()
+g1 + geom_text()
+g1 + geom_point() + geom_text()
+g1 + geom_area()
+g1 + geom_tile()
+g1 + geom_polygon()
+g1 + geom_line()
+g1 + geom_path()
+```
+
+
+### Histogram
+Easy histogram (note histograms by default are using stat="count"):
+```{r}
+ggplot(enr, aes(fill=factor(atrisk), x=read_score, alpha = 0.4)) + 
+  geom_histogram() + 
+  scale_fill_manual(values = c("#800000","#000080"))
+```
+
+### Density plot
+Easy density plot - same code as above with different geom.
+```{r}
+ggplot(enr, aes(fill=factor(atrisk), x=read_score, alpha = 0.4)) + 
+  geom_density() + 
+  scale_fill_manual(values = c("#800000","#000080"))
+```
+
+### Violin plot
+Now to a violion chart (minor changes here, we moved read_score to the y aesthetic and added an x aesthetic to separate the violions by atrisk status):
+```{r}
+ggplot(enr, aes(x=factor(atrisk), y=read_score, fill=factor(atrisk), alpha = 0.4)) + 
+  geom_violin() + 
+  scale_fill_manual(values = c("#800000","#000080"))
+```
+
+### Boxplot
+Same code as above with different geom.
+```{r}
+ggplot(enr, aes(x=factor(atrisk), y=read_score, fill=factor(atrisk), alpha = 0.4)) + 
+  geom_boxplot() + 
+  scale_fill_manual(values = c("#800000","#000080"))
+```
+
+
+## Basic statistics in ggplot
+Some graphs types have interesting defaults in ggplot tha can save us a lot of time. For instance, we are not expected by geom_histogram() to create a dataframe of binned counts, it does this for us with the stat="count".
+
+When you look at basic histogram craetion, it becomes clear that ggplot is doing some of the work for you:
+```{r}
+ggplot(enr, aes(x=read_score)) + 
+  geom_histogram() 
+```
+
+To get a similar effect without ggplot doing this for us, we need to slice up the data into ranges (called bins, in hostogram parlance), and the count the number of observations in each of those bins. I have done that below, then passed that to ggplot and created a histogram using geom_histogram(stat="identity").
+
+```{r}
+enr %>%
+  mutate(spliced_read_scores = cut(read_score, 
+    breaks=c(-4,-3,-2,-1,0,1,2,3,4), 
+    labels=c("4-3 sd below","3-2 sd below","2-1 sd below","1-0 sd below",
+      "0-1 sd above","1-2 sd above","2-3 sd above","3-4 sd above"))) %>%
+  group_by(spliced_read_scores) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(x=spliced_read_scores, y=count)) + 
+    geom_histogram(stat="identity")
+```  
+                        
+You might notice this was a lot more work! stat="count" as the default saves us a lot of time and effort.
+
+## More Examples by Chart Type:
+
+### Bar chars
+
+Bar charts in ggplot use stat="count" by default.
+```{r}
+ggplot(data=enr, aes(factor(grade))) + geom_bar()
+```
+
+Adding fill creates a stacked bar chart - this is because there is an option called position that is, by default, set to stack:
+```{r}
+ggplot(data=enr, aes(factor(grade), fill=ell)) + geom_bar()
+```
+
+We can create a paired bar chart instead with position="dodge"
+```{r}
+ggplot(data=enr, aes(factor(grade), fill=ell)) +
+  geom_bar(position="dodge")
+```
+
+### Line chart
+```{r}
+data(Orange)
+ggplot(Orange, aes(x=age, y=circumference, color=Tree)) + 
+  geom_point() + geom_line()
+```
+
+### Heatmap
+```{r}
+data(Puromycin)
+Puromycin$time <- as.factor(c(1:12,1:11))
+ggplot(Puromycin, aes(x=state, y=time, fill=rate)) + geom_tile()
+```
+
+### Viridis Color Palette
+For charts with a continuous color scale, consider using the viridis or rColorBrewer packages for perceptually linear color palettes:
+```{r}
+library(viridis)
+ggplot(Puromycin, aes(x=state, y=time, fill=rate)) + 
+  geom_tile() + 
+  scale_fill_viridis(option="magma")
+```
+
+You can change the `option` above to various palettes, such as: `viridis`, `plasma`, and `inferno`. All of which are perceptually linear (well, as good as they come).
+
+
+### Stacked area chart:
+```{r}
+txhousing %>%
+  filter(city %in% c("Austin","Houston","Dallas","San Antonio","Fort Worth")) %>%
+  group_by(city, year) %>%
+  summarize(sales = sum(sales)) %>%
+  ggplot(aes(x = year, y = sales, fill = city)) +
+  geom_area(position = "stack") +
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma) +
+  scale_x_continuous(expand = c(0, 0), breaks = (seq(2000,2015,3)), labels=(seq(2000,2015,3))) +
+  labs(title = "Home Sales in Texas Cities",
+       caption = "Urban Institute",
+       x = "Year",
+       y = "Home Sales")
+```
+
+### Stacked area chart 
+Same code as above, except now using position="fill"
+```{r}
+txhousing %>%
+  filter(city == "Austin" | city == "Houston"| city == "Dallas"| city == "San Antonio" | city == "Fort Worth") %>%
+  group_by(city, year) %>%
+  summarize(listings = sum(listings)) %>%
+  mutate(listings = ifelse(is.na(listings), lag(listings), listings)) %>%
+  ggplot(aes(x = year, y = listings, fill = city)) +
+  geom_area(position = "fill") +
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma) +
+  scale_x_continuous(expand = c(0, 0), breaks = (seq(2000,2015,3)), labels=(seq(2000,2015,3))) +
+  labs(title = "Home Listings in Texas Cities",
+       caption = "Urban Institute",
+       x = "Year",
+       y = "Proportion of Home Listings")
+```
+
+### Facet Grid
+Facet grid takes up to two variables and makes a grid of charts, each using only a subset of the data as defined by the grid.
+
+```{r, warning=FALSE}
+##Facet Grid
+ggplot(mtcars, aes(mpg, wt)) +
+  geom_point() + 
+  ggtitle("Facet Grid") +
+  facet_grid(vs ~ am, margins = TRUE)
+```
+
+### Facet Wrap
+```{r, warning=FALSE}
+txhousing %>%
+  filter(city != "Brazoria County" & city != "Brownsville" & city != "San Angelo" & city != "Denton County") %>%
+  ggplot(aes(x = median)) +
+  geom_histogram() +
+  facet_wrap(~city) +
+  scale_x_continuous(labels = scales::dollar) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(title = "Median Monthly Home Prices in Selected Texas Cities",
+       caption="Urban Institute",
+       x = "Median Monthly Home Value",
+       y = "Count") + 
+  theme(axis.text.x = element_text(angle = 90),
+        strip.text = element_text(face = "plain", 
+                                  size = rel(0.5)))
+```
